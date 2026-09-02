@@ -289,11 +289,13 @@
 
 <script>
 /* ═══════════════════════════════════════════════════════════════
-   CONFIG — where the Spring Boot API lives.
-   Empty string => same origin (served by Spring at :8080). If you open
-   this HTML directly from disk, set API to "http://localhost:8080".
+   ⚙️  CONFIG — API base URL.
+   This copy is served BY Spring Boot, so same-origin ("") is correct
+   and needs no change. If you host the client elsewhere (e.g. a Render
+   Static Site), set this to the backend URL, e.g.
+   "https://securevault-backend.onrender.com".
    ═══════════════════════════════════════════════════════════════ */
-const API = ""; // e.g. "http://localhost:8080"
+const API_BASE_URL = "";
 
 /* ─────────── CRYPTO (AES-256-GCM + PBKDF2) ───────────
    Preserved from the original client. The salt (16B) and IV (12B) are
@@ -336,7 +338,7 @@ function b64ToBytes(b64){ const s=atob(b64); const u=new Uint8Array(s.length); f
 
 /* ─────────── API HELPERS ─────────── */
 async function api(path, opts={}) {
-  const res = await fetch(API + path, {
+  const res = await fetch(API_BASE_URL + path, {
     credentials: 'include',
     headers: opts.body && !(opts.body instanceof FormData) ? {'Content-Type':'application/json'} : undefined,
     ...opts

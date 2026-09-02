@@ -76,16 +76,16 @@ public class FileController {
         }
 
         User user = currentUser(auth);
-        String path = storage.store(encryptedBlob);
 
         FileMeta meta = new FileMeta();
         meta.setUserId(user.getId());
         meta.setOriginalFilename(sanitizeName(originalFilename));
-        meta.setStoragePath(path);
         meta.setSaltBase64(saltBase64);
         meta.setIvBase64(ivBase64);
         meta.setSha256Hash(sha256Hash.toLowerCase());
         meta.setFileSize(originalSize != null ? originalSize : encryptedBlob.getSize());
+        // Store ciphertext via the configured backend (DB BYTEA or filesystem).
+        storage.store(encryptedBlob, meta);
         meta = files.save(meta);
 
         audit.log(user.getId(), meta.getId(), "UPLOAD", meta.getOriginalFilename());
@@ -102,6 +102,7 @@ public class FileController {
 
     /** Return ciphertext + salt + IV so the client can decrypt locally. */
     @GetMapping("/{id}/download")
+    @Transactional(readOnly = true)
     public ResponseEntity<?> download(Authentication auth, @PathVariable Long id) {
         User user = currentUser(auth);
         FileMeta meta = files.findByIdAndUserId(id, user.getId()).orElse(null);
@@ -109,7 +110,7 @@ public class FileController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "File not found"));
         }
-        byte[] ciphertext = storage.read(meta.getStoragePath());
+        byte[] ciphertext = storage.read(meta); // reads lazy BYTEA within this tx, or disk
         audit.log(user.getId(), meta.getId(), "DOWNLOAD", meta.getOriginalFilename());
 
         return ResponseEntity.ok(new DownloadResponse(
@@ -132,7 +133,7 @@ public class FileController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "File not found"));
         }
-        storage.delete(meta.getStoragePath());
+        storage.delete(meta);
         files.delete(meta);
         audit.log(user.getId(), id, "DELETE", meta.getOriginalFilename());
         return ResponseEntity.ok(Map.of("status", "deleted", "id", id));

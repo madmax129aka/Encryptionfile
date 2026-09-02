@@ -289,11 +289,18 @@
 
 <script>
 /* ═══════════════════════════════════════════════════════════════
-   CONFIG — where the Spring Boot API lives.
-   Empty string => same origin (served by Spring at :8080). If you open
-   this HTML directly from disk, set API to "http://localhost:8080".
+   ⚙️  CONFIG — CHANGE THIS ONE LINE to point at your backend.
+   ───────────────────────────────────────────────────────────────
+   • Local dev:  "http://localhost:8080"
+   • Render:     your backend Web Service URL, e.g.
+                 "https://securevault-backend.onrender.com"
+   Leave it as "" only if the client is served from the SAME origin
+   as the API (i.e. by Spring Boot itself).
+
+   After deploying the backend on Render, set this to the backend's
+   public URL, redeploy the Static Site — that's the only edit needed.
    ═══════════════════════════════════════════════════════════════ */
-const API = "http://localhost:8080"; // standalone copy: talks to the Spring Boot server
+const API_BASE_URL = "http://localhost:8080";
 
 /* ─────────── CRYPTO (AES-256-GCM + PBKDF2) ───────────
    Preserved from the original client. The salt (16B) and IV (12B) are
@@ -336,7 +343,7 @@ function b64ToBytes(b64){ const s=atob(b64); const u=new Uint8Array(s.length); f
 
 /* ─────────── API HELPERS ─────────── */
 async function api(path, opts={}) {
-  const res = await fetch(API + path, {
+  const res = await fetch(API_BASE_URL + path, {
     credentials: 'include',
     headers: opts.body && !(opts.body instanceof FormData) ? {'Content-Type':'application/json'} : undefined,
     ...opts

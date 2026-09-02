@@ -1,0 +1,4 @@
+# Parses Render's DATABASE_URL into Spring datasource properties before the
+# datasource bean is created.
+org.springframework.boot.env.EnvironmentPostProcessor=\
+com.securevault.config.DatabaseUrlConfig

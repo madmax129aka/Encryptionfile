@@ -11,19 +11,21 @@ encrypted on one computer could not be decrypted on another.
 ## 2. Architecture
 
 A thin **browser client** performs all cryptography using the Web Crypto API. A
-**Spring Boot** REST API handles authentication, stores encrypted blobs on disk,
-and keeps **metadata only** in **MySQL**. The trust boundary is the browser:
-plaintext and the passphrase never cross it.
+**Spring Boot** REST API handles authentication and stores encrypted blobs, and
+keeps **metadata only** in **PostgreSQL**. The trust boundary is the browser:
+plaintext and the passphrase never cross it. Deployed as two Render services
+(backend Web Service + frontend Static Site) with managed Postgres.
 
 ```
-Browser (encrypt/decrypt)  ──ciphertext+salt+iv+hash──▶  Spring Boot  ──▶  MySQL (metadata)
-                                                                      └──▶  Disk (*.enc blobs)
+Browser (encrypt/decrypt)  ──ciphertext+salt+iv+hash──▶  Spring Boot  ──▶  PostgreSQL (metadata
+                                                                      │      + ciphertext BYTEA)
+                                                                      └──▶  Disk (*.enc blobs, optional)
 ```
 
 - **Client:** HTML/CSS/JS + `crypto.subtle`.
 - **Server:** Java 17, Spring Boot 3.3, Spring Web/Data JPA/Security, BCrypt, session auth.
-- **DB:** MySQL 8 — `users`, `files`, `audit_log`. No plaintext, passphrases, or keys stored.
-- **Blobs:** `uploads/encrypted/<uuid>.enc` referenced by path in `files`.
+- **DB:** PostgreSQL — `users`, `files`, `audit_log`. No plaintext, passphrases, or keys stored.
+- **Blobs:** stored in Postgres as `BYTEA` by default (Render-safe), or on disk when configured.
 
 ## 3. Algorithms & crypto design
 
@@ -54,7 +56,7 @@ stored salt/IV + passphrase reproduces the original and passes the SHA-256 check
 ## 5. Security analysis
 
 **Strengths**
-- **Zero-knowledge server:** compromise of MySQL or disk yields only ciphertext + metadata.
+- **Zero-knowledge server:** compromise of the database or disk yields only ciphertext + metadata.
 - **Authenticated encryption:** any bit-flip in the stored ciphertext makes GCM decryption fail loudly (❌ Tampered), so silent corruption/tampering is impossible.
 - **Per-file salt & IV:** no key/nonce reuse across files.
 - **Defence in depth on integrity:** GCM tag *and* a separate SHA-256 comparison.

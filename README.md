@@ -5,8 +5,12 @@ browser** (AES-256-GCM with a PBKDF2-derived key) *before* they are uploaded, so
 the server and database only ever store **ciphertext + metadata** — never
 plaintext, passphrases, or keys.
 
-> Even if the server and MySQL database are fully compromised, stored files stay
+> Even if the server and database are fully compromised, stored files stay
 > unreadable without the user's passphrase.
+
+> **Deploying on Render?** Jump to [Deploying on Render](#deploying-on-render). The
+> backend runs as a **Web Service**, the client as a **Static Site**, backed by
+> Render's free managed **PostgreSQL**.
 
 This project extends an earlier browser-only encryption client into a full
 client-server system, and **fixes the "encrypt on one machine, decrypt only on
@@ -27,19 +31,21 @@ the identical key from the same passphrase and decrypt.
 │  encrypt / decrypt LOCALLY   │   ciphertext + salt + iv  │   BCrypt login (session)    │
 └────────────────────────────┘                             └────────────┬──────────────┘
         ▲ passphrase never leaves the browser                           │
-        │                                                    ┌───────────┴───────────┐
-   plaintext only exists                                     │  MySQL (metadata only) │
-   in the user's browser                                     │  users / files / audit │
-                                                             ├────────────────────────┤
-                                                             │  Disk: /uploads/*.enc   │
-                                                             │  (ciphertext blobs)     │
-                                                             └────────────────────────┘
+        │                                                    ┌───────────┴────────────┐
+   plaintext only exists                                     │  PostgreSQL             │
+   in the user's browser                                     │  users / files / audit  │
+                                                             │  ciphertext as BYTEA    │
+                                                             │  (Render-safe default)  │
+                                                             └─────────────────────────┘
 ```
 
 - **Client:** plain HTML/CSS/JS, Web Crypto API (`crypto.subtle`). No build step.
 - **Backend:** Java 17, Spring Boot 3.3.x, Spring Web, Spring Data JPA, Spring Security.
-- **Database:** MySQL 8 (metadata only). An H2 in-memory profile is included for zero-setup demos.
-- **File storage:** encrypted blobs on local disk (`server/uploads/encrypted/<uuid>.enc`), referenced by path in MySQL.
+- **Database:** PostgreSQL (metadata only). An H2 in-memory profile is included for zero-setup demos.
+- **File storage:** two backends selectable via `STORAGE_BACKEND`:
+  - `db` (**default, Render-safe**) — ciphertext stored in Postgres as `BYTEA`.
+  - `filesystem` — ciphertext on local disk (`server/uploads/encrypted/<uuid>.enc`).
+    ⚠️ **Do not use on Render** — its disk is ephemeral and wiped on every redeploy/restart.
 
 ---
 
@@ -54,18 +60,28 @@ mvn spring-boot:run -Dspring-boot.run.profiles=h2
 
 Then open **http://localhost:8080** in your browser. Data resets when the app stops.
 
-### Option B — Full stack with MySQL (as per the brief)
+### Option B — Full stack with local PostgreSQL
 
-1. **Create the database** (schema is also auto-created by Hibernate):
+1. **Create a database and user** (once):
    ```bash
-   mysql -u root -p < server/src/main/resources/schema.sql
+   createdb securevault           # or: psql -c "CREATE DATABASE securevault;"
    ```
-2. **Configure the connection** in `server/src/main/resources/application.properties`:
-   ```properties
-   spring.datasource.url=jdbc:mysql://localhost:3306/securevault?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-   spring.datasource.username=root
-   spring.datasource.password=YOUR_PASSWORD
+   The tables are auto-created by Hibernate. To create them manually, run the
+   Postgres DDL:
+   ```bash
+   psql -d securevault -f server/src/main/resources/schema.sql
    ```
+2. **Point the app at your Postgres** using environment variables (no hardcoded
+   values in the code — everything is externalized):
+   ```bash
+   export SPRING_DATASOURCE_URL="jdbc:postgresql://localhost:5432/securevault"
+   export SPRING_DATASOURCE_USERNAME="postgres"
+   export SPRING_DATASOURCE_PASSWORD="postgres"
+   # local HTTP: relax the cross-site cookie so it works without HTTPS
+   export COOKIE_SAMESITE=Lax
+   export COOKIE_SECURE=false
+   ```
+   (Or edit the defaults in `server/src/main/resources/application.properties`.)
 3. **Run the server:**
    ```bash
    cd server
@@ -77,8 +93,10 @@ Then open **http://localhost:8080** in your browser. Data resets when the app st
 
 The client is served by Spring at `/` (from `static/index.html`), which keeps it
 **same-origin** so the session cookie just works. If you'd rather open the HTML
-file directly from disk, use `securevault-client.html` at the repo root — it sets
-`const API = "http://localhost:8080"` and relies on the server's CORS config.
+file directly from disk (or host it elsewhere, like a Render Static Site), use
+`securevault-client.html` at the repo root and set the single config line near
+the top: `const API_BASE_URL = "http://localhost:8080";` (or your deployed
+backend URL). Make sure the backend's `ALLOWED_ORIGIN` includes that origin.
 
 ### Demo account
 
@@ -131,6 +149,90 @@ curl -b cookies.txt http://localhost:8080/api/files
 
 ---
 
+## Deploying on Render
+
+The app deploys as **two services + one database**: a Spring Boot **Web Service**
+(backend), a **Static Site** (frontend), and a managed **PostgreSQL** instance.
+All configuration is via environment variables — there are no hardcoded localhost
+values in the backend.
+
+### Environment variables (backend Web Service)
+
+| Variable          | Required | Example / default | Purpose |
+|-------------------|----------|-------------------|---------|
+| `DATABASE_URL`    | yes (Render injects) | `postgresql://user:pass@host:5432/db` | Render's Postgres URL. Parsed automatically into a JDBC URL by `DatabaseUrlConfig` (adds `sslmode=require`). |
+| `ALLOWED_ORIGIN`  | **yes** | `https://securevault-frontend.onrender.com` | CORS: the frontend Static Site URL. Comma-separate multiple origins. |
+| `STORAGE_BACKEND` | no | `db` (default) | `db` = ciphertext in Postgres BYTEA (**use this on Render**). `filesystem` = local disk (ephemeral, will lose files). |
+| `COOKIE_SAMESITE` | no | `None` (default) | Cross-site session cookie. Keep `None` on Render (different domains). |
+| `COOKIE_SECURE`   | no | `true` (default) | Send cookie only over HTTPS. Keep `true` on Render. |
+| `SEED_DEMO_USER`  | no | `true` (default) | Seeds `demo` / `Demo@1234`. |
+| `PORT`            | no (Render injects) | `10000` | Server port. The app already binds `0.0.0.0:${PORT}`. |
+
+> You can also override the DB with `SPRING_DATASOURCE_URL` /
+> `SPRING_DATASOURCE_USERNAME` / `SPRING_DATASOURCE_PASSWORD` if you prefer not to
+> use `DATABASE_URL`.
+
+### Option 1 — One-click Blueprint (recommended)
+
+This repo includes **`render.yaml`**, which provisions the database, backend, and
+frontend together.
+
+1. On the Render dashboard: **New → Blueprint**, connect this GitHub repo, and apply.
+2. Render creates `securevault-db`, `securevault-backend`, and `securevault-frontend`.
+   `DATABASE_URL` is wired to the backend automatically.
+3. When the **frontend** finishes deploying, copy its URL
+   (e.g. `https://securevault-frontend.onrender.com`) and:
+   - Set the backend's **`ALLOWED_ORIGIN`** env var to that URL → the backend redeploys.
+   - Edit **`API_BASE_URL`** at the top of `securevault-client.html` to the **backend**
+     URL (e.g. `https://securevault-backend.onrender.com`), commit & push → the
+     Static Site redeploys.
+4. Open the frontend URL and log in with `demo` / `Demo@1234`.
+
+### Option 2 — Manual setup
+
+**Database:** New → **PostgreSQL** (free). Note its **Internal Connection String**.
+
+**Backend:** New → **Web Service**, from this repo.
+- **Root Directory:** `server`
+- **Runtime:** Java
+- **Build Command:** `mvn clean package -DskipTests`
+- **Start Command:** `java -jar target/securevault-server-1.0.0.jar`
+- **Health Check Path:** `/api/health`
+- **Env vars:** `DATABASE_URL` (paste the connection string), `STORAGE_BACKEND=db`,
+  `COOKIE_SAMESITE=None`, `COOKIE_SECURE=true`, and (after the frontend exists)
+  `ALLOWED_ORIGIN=<your static-site URL>`.
+
+**Frontend:** New → **Static Site**, from this repo.
+- **Build Command:** *(leave empty — no build step)*
+- **Publish Directory:** `.` (repo root)
+- Add a **Rewrite Rule** `/` → `/securevault-client.html` (or just visit
+  `.../securevault-client.html`).
+- Edit `API_BASE_URL` in `securevault-client.html` to the backend URL, then commit.
+
+### The one line to change in the frontend
+
+At the very top of the `<script>` in **`securevault-client.html`**:
+
+```js
+const API_BASE_URL = "https://securevault-backend.onrender.com"; // ← your backend URL
+```
+
+That is the only frontend edit needed to point the deployed client at the deployed
+backend. The encryption/decryption logic (PBKDF2 salt + IV handling, AES-256-GCM)
+is untouched.
+
+### Note on Render's free tier
+
+- **Ephemeral disk:** anything written to the container filesystem is wiped on
+  redeploy/restart. Keeping `STORAGE_BACKEND=db` avoids this by storing ciphertext
+  in Postgres. This is well-suited to small/demo-scale files.
+- **Cold starts:** free Web Services sleep after inactivity; the first request may
+  take ~30–60s to wake.
+- **Free Postgres expiry:** Render's free databases have a limited lifetime — for a
+  long-lived demo, plan to recreate or upgrade.
+
+---
+
 ## HTTPS / TLS (why it still matters)
 
 The file *payloads* are already end-to-end encrypted, so why add TLS?
@@ -163,7 +265,8 @@ server.ssl.key-alias=securevault
 ```
 
 Then browse to `https://localhost:8080` (accept the self-signed warning) and set
-`const API = "https://localhost:8080"` in the standalone client if used.
+`const API_BASE_URL = "https://localhost:8080"` in the standalone client if used.
+(On Render you don't need this — TLS is provided automatically.)
 
 ---
 
@@ -173,22 +276,24 @@ Then browse to `https://localhost:8080` (accept the self-signed warning) and set
 Encryptionfile/
 ├── README.md
 ├── WRITEUP.md                     # 1-page report: objective, design, security analysis
-├── securevault-client.html        # standalone client (API=http://localhost:8080)
+├── render.yaml                    # Render Blueprint: db + backend + frontend
+├── securevault-client.html        # standalone client (set API_BASE_URL) — the Render Static Site
 ├── securedrop.html                # original browser-only P2P reference (kept for history)
 └── server/
-    ├── pom.xml
+    ├── pom.xml                    # PostgreSQL driver
     └── src/main/
         ├── java/com/securevault/
         │   ├── SecureVaultApplication.java
-        │   ├── config/            # SecurityConfig, DemoDataSeeder
-        │   ├── entity/            # User, FileMeta, AuditLog
+        │   ├── config/            # SecurityConfig, DemoDataSeeder, DatabaseUrlConfig
+        │   ├── entity/            # User, FileMeta (BYTEA blob), AuditLog
         │   ├── repository/        # Spring Data JPA repositories
-        │   ├── service/           # StorageService, AuditService, UserService
-        │   └── web/               # AuthController, FileController, AuditController, DTOs
+        │   ├── service/           # StorageService (db|filesystem), AuditService, UserService
+        │   └── web/               # AuthController, FileController, AuditController, HealthController, DTOs
         └── resources/
-            ├── application.properties        # MySQL (default)
+            ├── application.properties        # PostgreSQL (env-var driven, Render-ready)
             ├── application-h2.properties      # in-memory demo profile
-            ├── schema.sql                     # canonical MySQL DDL
+            ├── schema.sql                     # canonical PostgreSQL DDL
+            ├── META-INF/spring.factories      # registers DatabaseUrlConfig
             └── static/index.html              # the SecureVault dashboard (served at /)
 ```
 
