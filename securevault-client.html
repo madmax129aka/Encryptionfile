@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SecureVault — Zero-Knowledge Encrypted Storage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0F172A; --bg2:#0B1221; --surface:#111C33; --surface2:#17233F;
+    --border:#243354; --cyan:#22D3EE; --cyan-dim:rgba(34,211,238,0.12);
+    --purple:#8B5CF6; --green:#10B981; --red:#EF4444; --amber:#F59E0B;
+    --text:#E2E8F0; --dim:#7E8CA8;
+  }
+  body{background:radial-gradient(1200px 600px at 50% -10%,#16233f 0%,var(--bg) 55%);color:var(--text);
+    font-family:Inter,system-ui,sans-serif;min-height:100vh}
+  h1,h2,h3,.brand,.tab,.btn{font-family:'Space Grotesk',sans-serif}
+  a{color:var(--cyan)}
+  .hidden{display:none!important}
+
+  /* Top bar */
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;
+    border-bottom:1px solid var(--border);background:rgba(11,18,33,.7);backdrop-filter:blur(8px);position:sticky;top:0;z-index:20}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;letter-spacing:-.3px}
+  .brand .mark{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--cyan),var(--purple));font-size:16px}
+  .brand span{color:var(--cyan)}
+  .who{display:flex;align-items:center;gap:14px;font-size:13px;color:var(--dim)}
+  .who b{color:var(--text)}
+  .link-btn{background:none;border:none;color:var(--dim);cursor:pointer;font-size:13px;font-family:'Space Grotesk';padding:6px 8px;border-radius:6px}
+  .link-btn:hover{color:var(--cyan);background:var(--cyan-dim)}
+
+  .container{max-width:900px;margin:0 auto;padding:32px 20px 80px}
+
+  /* Auth */
+  .auth-wrap{max-width:400px;margin:8vh auto 0;padding:0 16px}
+  .auth-head{text-align:center;margin-bottom:28px}
+  .auth-head .mark{width:52px;height:52px;border-radius:14px;margin:0 auto 16px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--cyan),var(--purple));font-size:26px;box-shadow:0 8px 30px rgba(34,211,238,.25)}
+  .auth-head h1{font-size:26px;letter-spacing:-.5px}
+  .auth-head p{color:var(--dim);font-size:14px;margin-top:6px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;
+    box-shadow:0 10px 40px rgba(0,0,0,.35)}
+  .card-pad{padding:26px}
+  .tabs{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border)}
+  .tab{padding:15px;background:none;border:none;cursor:pointer;font-size:14px;font-weight:600;color:var(--dim);
+    transition:.2s;border-bottom:2px solid transparent}
+  .tab:hover{color:var(--text)}
+  .tab.active{color:var(--cyan);background:var(--cyan-dim);border-bottom-color:var(--cyan)}
+  label.fld{display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);
+    margin:18px 0 7px;font-weight:600}
+  label.fld:first-child{margin-top:0}
+  input[type=text],input[type=password]{width:100%;background:var(--surface2);border:1px solid var(--border);
+    border-radius:9px;padding:12px 14px;font-family:Inter;font-size:14px;color:var(--text);outline:none;transition:border-color .2s}
+  input:focus{border-color:var(--cyan)}
+  input::placeholder{color:var(--dim)}
+  .pw-wrap{position:relative}
+  .pw-wrap input{padding-right:42px}
+  .eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;
+    cursor:pointer;font-size:15px;color:var(--dim)}
+  .btn{width:100%;margin-top:22px;padding:13px;border-radius:11px;border:none;cursor:pointer;font-size:14px;
+    font-weight:700;letter-spacing:.03em;color:#04121a;background:linear-gradient(135deg,var(--cyan),#0ea5b7);transition:.15s}
+  .btn:hover:not(:disabled){filter:brightness(1.08)}
+  .btn:active:not(:disabled){transform:scale(.99)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+  .btn.danger{background:linear-gradient(135deg,#ef4444,#b91c1c);color:#fff}
+
+  /* Dashboard */
+  .dash-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:14px}
+  .dash-head h2{font-size:22px}
+  .dash-head p{color:var(--dim);font-size:13px;margin-top:4px}
+  .navlinks{display:flex;gap:6px}
+  .navlinks .tab{border:1px solid var(--border);border-radius:9px;border-bottom:1px solid var(--border);padding:9px 14px}
+  .navlinks .tab.active{border-color:var(--cyan)}
+
+  .upload-btn{padding:11px 18px;border-radius:10px;border:none;cursor:pointer;font-weight:700;font-size:13px;
+    background:linear-gradient(135deg,var(--cyan),#0ea5b7);color:#04121a;white-space:nowrap}
+
+  .files{display:flex;flex-direction:column;gap:12px;margin-top:8px}
+  .file{display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);
+    border-radius:14px;padding:16px 18px;transition:border-color .2s}
+  .file:hover{border-color:#31456f}
+  .file .ic{width:42px;height:42px;border-radius:10px;background:var(--surface2);display:grid;place-items:center;font-size:20px;flex-shrink:0}
+  .file .meta{flex:1;min-width:0}
+  .file .name{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .file .sub{font-size:12px;color:var(--dim);margin-top:3px;font-family:'JetBrains Mono',monospace}
+  .file .acts{display:flex;gap:8px;flex-shrink:0}
+  .icon-btn{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);
+    cursor:pointer;font-size:13px;padding:8px 12px;font-family:'Space Grotesk';font-weight:600;transition:.15s}
+  .icon-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+  .icon-btn.del:hover{border-color:var(--red);color:var(--red)}
+  .empty{text-align:center;padding:50px 20px;color:var(--dim)}
+  .empty .big{font-size:40px;margin-bottom:12px;opacity:.6}
+
+  /* badges */
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;
+    font-family:'JetBrains Mono',monospace}
+  .badge.ok{background:rgba(16,185,129,.14);color:var(--green);border:1px solid rgba(16,185,129,.3)}
+  .badge.bad{background:rgba(239,68,68,.14);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+  .badge.enc{background:var(--cyan-dim);color:var(--cyan);border:1px solid rgba(34,211,238,.3)}
+
+  /* modal */
+  .overlay{position:fixed;inset:0;background:rgba(4,8,18,.72);backdrop-filter:blur(4px);z-index:50;
+    display:grid;place-items:center;padding:20px}
+  .modal{width:100%;max-width:460px}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border)}
+  .modal-head h3{font-size:17px}
+  .close-x{background:none;border:none;color:var(--dim);font-size:20px;cursor:pointer;line-height:1}
+  .close-x:hover{color:var(--text)}
+
+  .drop{border:1.5px dashed var(--border);border-radius:11px;padding:22px;text-align:center;cursor:pointer;position:relative;transition:.2s}
+  .drop:hover,.drop.over{border-color:var(--cyan);background:var(--cyan-dim)}
+  .drop input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
+  .drop .di{font-size:26px;margin-bottom:6px}
+  .drop .dt{font-size:13px;color:var(--dim)}
+  .drop .dt strong{display:block;color:var(--text);margin-bottom:2px}
+
+  .lock{font-size:30px;display:inline-block;transition:transform .5s}
+  .lock.spin{animation:wobble .6s}
+  @keyframes wobble{0%,100%{transform:rotate(0)}25%{transform:rotate(-12deg)}75%{transform:rotate(12deg)}}
+
+  .progress{margin-top:16px}
+  .track{height:6px;background:var(--surface2);border-radius:99px;overflow:hidden}
+  .fill{height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--purple));border-radius:99px;transition:width .15s}
+  .plabel{font-size:11px;color:var(--dim);margin-top:5px;font-family:'JetBrains Mono',monospace}
+
+  .status{margin-top:14px;font-size:13px;min-height:18px;line-height:1.5}
+  .status.info{color:var(--cyan)} .status.success{color:var(--green)} .status.error{color:var(--red)}
+
+  /* toast */
+  #toasts{position:fixed;right:20px;bottom:20px;z-index:100;display:flex;flex-direction:column;gap:10px}
+  .toast{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--cyan);
+    border-radius:10px;padding:13px 16px;font-size:13px;max-width:340px;box-shadow:0 10px 30px rgba(0,0,0,.4);
+    animation:slidein .25s ease}
+  .toast.ok{border-left-color:var(--green)} .toast.err{border-left-color:var(--red)}
+  @keyframes slidein{from{transform:translateX(30px);opacity:0}to{transform:none;opacity:1}}
+
+  /* audit table */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--border)}
+  th{color:var(--dim);font-weight:600;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+  td .act{font-family:'JetBrains Mono',monospace;font-weight:600}
+  .act.UPLOAD{color:var(--cyan)} .act.DOWNLOAD{color:var(--green)} .act.DELETE{color:var(--red)}
+
+  .footer{text-align:center;color:var(--dim);font-size:12px;margin-top:36px;line-height:1.8}
+  .footer b{color:var(--cyan)}
+</style>
+</head>
+<body>
+
+<!-- ══════════ TOP BAR ══════════ -->
+<div class="topbar" id="topbar">
+  <div class="brand"><div class="mark">🛡️</div>Secure<span>Vault</span></div>
+  <div class="who" id="whoBox">
+    <span id="whoText"></span>
+    <button class="link-btn" id="logoutBtn" onclick="logout()">Log out</button>
+  </div>
+</div>
+
+<!-- ══════════ AUTH VIEW ══════════ -->
+<div class="auth-wrap" id="authView">
+  <div class="auth-head">
+    <div class="mark">🛡️</div>
+    <h1>SecureVault</h1>
+    <p>Files are encrypted in your browser before they ever reach the server.</p>
+  </div>
+  <div class="card">
+    <div class="tabs">
+      <button class="tab active" id="loginTab" onclick="authMode('login')">Log in</button>
+      <button class="tab" id="regTab" onclick="authMode('register')">Register</button>
+    </div>
+    <div class="card-pad">
+      <label class="fld">Username</label>
+      <input type="text" id="authUser" placeholder="demo" autocomplete="username">
+      <label class="fld">Password</label>
+      <div class="pw-wrap">
+        <input type="password" id="authPass" placeholder="Demo@1234" autocomplete="current-password">
+        <button class="eye" onclick="togglePw('authPass',this)" type="button">👁</button>
+      </div>
+      <button class="btn" id="authBtn" onclick="submitAuth()">Log in</button>
+      <div class="status" id="authStatus"></div>
+      <div style="margin-top:16px;font-size:12px;color:var(--dim);text-align:center">
+        Demo account &nbsp;·&nbsp; <b style="color:var(--text)">demo</b> / <b style="color:var(--text)">Demo@1234</b>
+      </div>
+    </div>
+  </div>
+  <div class="footer">
+    <b>AES-256-GCM</b> · <b>PBKDF2</b> (150k, SHA-256) · zero-knowledge server<br>
+    The server stores only ciphertext + metadata. Your passphrase never leaves this page.
+  </div>
+</div>
+
+<!-- ══════════ DASHBOARD VIEW ══════════ -->
+<div class="container hidden" id="dashView">
+  <div class="dash-head">
+    <div>
+      <h2>Your Vault</h2>
+      <p>End-to-end encrypted. Decrypt on any machine with your passphrase.</p>
+    </div>
+    <button class="upload-btn" onclick="openUpload()">＋ Encrypt &amp; Upload</button>
+  </div>
+
+  <div class="navlinks">
+    <button class="tab active" id="filesNav" onclick="showTab('files')">📁 Files</button>
+    <button class="tab" id="auditNav" onclick="showTab('audit')">📜 Audit Log</button>
+  </div>
+
+  <!-- Files tab -->
+  <div id="filesTab" style="margin-top:18px">
+    <div class="files" id="fileList"></div>
+    <div class="empty hidden" id="filesEmpty">
+      <div class="big">🗄️</div>
+      No files yet. Click <b>Encrypt &amp; Upload</b> to add your first encrypted file.
+    </div>
+  </div>
+
+  <!-- Audit tab -->
+  <div id="auditTab" class="hidden" style="margin-top:18px">
+    <div class="card"><div style="overflow:auto"><table>
+      <thead><tr><th>Action</th><th>File</th><th>When</th></tr></thead>
+      <tbody id="auditBody"></tbody>
+    </table></div></div>
+    <div class="empty hidden" id="auditEmpty"><div class="big">📜</div>No activity recorded yet.</div>
+  </div>
+
+  <div class="footer">
+    Tamper-proof via GCM auth tag · integrity re-verified with SHA-256 after every download
+  </div>
+</div>
+
+<!-- ══════════ UPLOAD MODAL ══════════ -->
+<div class="overlay hidden" id="uploadModal">
+  <div class="card modal">
+    <div class="modal-head">
+      <h3><span class="lock" id="upLock">🔒</span> Encrypt &amp; Upload</h3>
+      <button class="close-x" onclick="closeUpload()">✕</button>
+    </div>
+    <div class="card-pad">
+      <label class="fld">File</label>
+      <div class="drop" id="drop">
+        <input type="file" id="fileInput" onchange="onPick(this)">
+        <div class="di">📁</div>
+        <div class="dt"><strong id="fileLabel">Drop a file or click to browse</strong>Encrypted locally before upload</div>
+      </div>
+      <label class="fld">Encryption passphrase</label>
+      <div class="pw-wrap">
+        <input type="password" id="upPass" placeholder="Choose a strong passphrase" autocomplete="new-password">
+        <button class="eye" onclick="togglePw('upPass',this)" type="button">👁</button>
+      </div>
+      <button class="btn" id="upBtn" onclick="doUpload()">🔒 Encrypt &amp; Upload</button>
+      <div class="progress hidden" id="upProgress">
+        <div class="track"><div class="fill" id="upFill"></div></div>
+        <div class="plabel" id="upPct">0%</div>
+      </div>
+      <div class="status" id="upStatus"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ DOWNLOAD / DECRYPT MODAL ══════════ -->
+<div class="overlay hidden" id="dlModal">
+  <div class="card modal">
+    <div class="modal-head">
+      <h3><span class="lock" id="dlLock">🔓</span> Decrypt &amp; Download</h3>
+      <button class="close-x" onclick="closeDl()">✕</button>
+    </div>
+    <div class="card-pad">
+      <div style="font-size:14px;margin-bottom:4px">Decrypting <b id="dlName">file</b></div>
+      <label class="fld">Passphrase</label>
+      <div class="pw-wrap">
+        <input type="password" id="dlPass" placeholder="Enter the passphrase used to encrypt" autocomplete="off">
+        <button class="eye" onclick="togglePw('dlPass',this)" type="button">👁</button>
+      </div>
+      <button class="btn" id="dlBtn" onclick="doDownload()">🔓 Decrypt &amp; Download</button>
+      <div class="progress hidden" id="dlProgress">
+        <div class="track"><div class="fill" id="dlFill"></div></div>
+        <div class="plabel" id="dlPct">0%</div>
+      </div>
+      <div class="status" id="dlStatus"></div>
+      <div id="integrity" style="margin-top:12px"></div>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   CONFIG — where the Spring Boot API lives.
+   Empty string => same origin (served by Spring at :8080). If you open
+   this HTML directly from disk, set API to "http://localhost:8080".
+   ═══════════════════════════════════════════════════════════════ */
+const API = "http://localhost:8080"; // standalone copy: talks to the Spring Boot server
+
+/* ─────────── CRYPTO (AES-256-GCM + PBKDF2) ───────────
+   Preserved from the original client. The salt (16B) and IV (12B) are
+   generated fresh per file and stored on the server alongside the
+   ciphertext, so ANY machine re-derives the identical key from the
+   passphrase. That is the fix for "encrypt here, decrypt there". */
+const PBKDF2_ITERATIONS = 150000;
+
+async function deriveKey(passphrase, salt) {
+  const raw = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt, iterations:PBKDF2_ITERATIONS, hash:'SHA-256' },
+    raw, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']);
+}
+
+// Encrypt: returns { ciphertext(ArrayBuffer), salt(Uint8Array), iv(Uint8Array) }
+async function encryptBytes(passphrase, plainBuf) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv   = crypto.getRandomValues(new Uint8Array(12));
+  const key  = await deriveKey(passphrase, salt);
+  const ct   = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, plainBuf);
+  return { ciphertext: ct, salt, iv };
+}
+
+// Decrypt using the STORED salt + iv fetched from the server
+async function decryptBytes(passphrase, saltU8, ivU8, ctBuf) {
+  const key = await deriveKey(passphrase, saltU8);
+  return crypto.subtle.decrypt({ name:'AES-GCM', iv: ivU8 }, key, ctBuf);
+}
+
+async function sha256Hex(buf) {
+  const h = await crypto.subtle.digest('SHA-256', buf);
+  return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// base64 <-> bytes helpers
+function bytesToB64(u8){ let s=''; for(let i=0;i<u8.length;i++) s+=String.fromCharCode(u8[i]); return btoa(s); }
+function b64ToBytes(b64){ const s=atob(b64); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; }
+
+/* ─────────── API HELPERS ─────────── */
+async function api(path, opts={}) {
+  const res = await fetch(API + path, {
+    credentials: 'include',
+    headers: opts.body && !(opts.body instanceof FormData) ? {'Content-Type':'application/json'} : undefined,
+    ...opts
+  });
+  let data = null;
+  const ct = res.headers.get('content-type') || '';
+  if (ct.includes('application/json')) { try { data = await res.json(); } catch(e){} }
+  if (!res.ok) {
+    const msg = (data && data.error) || res.statusText || ('HTTP '+res.status);
+    const err = new Error(msg); err.status = res.status; throw err;
+  }
+  return data;
+}
+
+/* ─────────── UI HELPERS ─────────── */
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function togglePw(id,btn){ const e=$(id); e.type=e.type==='password'?'text':'password'; btn.textContent=e.type==='password'?'👁':'🙈'; }
+function setStatus(id,html,type){ const e=$(id); e.className='status '+(type||''); e.innerHTML=html; }
+function setPct(fill,lbl,p){ $(fill).style.width=p+'%'; $(lbl).textContent=p+'%'; }
+function fmtSize(b){ if(b==null) return '—'; if(b<1024) return b+' B'; if(b<1048576) return (b/1024).toFixed(1)+' KB'; return (b/1048576).toFixed(2)+' MB'; }
+function fmtDate(iso){ try{ return new Date(iso).toLocaleString(); }catch(e){ return iso; } }
+
+function toast(msg,type){
+  const t=document.createElement('div');
+  t.className='toast '+(type||'');
+  t.innerHTML=(type==='ok'?'✅ ':type==='err'?'⚠️ ':'')+esc(msg);
+  $('toasts').appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300); }, 3600);
+}
+
+/* ─────────── AUTH ─────────── */
+let mode='login', currentUser=null;
+
+function authMode(m){
+  mode=m;
+  $('loginTab').classList.toggle('active',m==='login');
+  $('regTab').classList.toggle('active',m==='register');
+  $('authBtn').textContent = m==='login'?'Log in':'Create account';
+  $('authPass').autocomplete = m==='login'?'current-password':'new-password';
+  setStatus('authStatus','','');
+}
+
+async function submitAuth(){
+  const username=$('authUser').value.trim();
+  const password=$('authPass').value;
+  if(!username||!password){ setStatus('authStatus','Enter a username and password','error'); return; }
+  const btn=$('authBtn'); btn.disabled=true;
+  setStatus('authStatus', mode==='login'?'Signing in…':'Creating account…','info');
+  try{
+    if(mode==='register'){
+      await api('/api/auth/register',{method:'POST',body:JSON.stringify({username,password})});
+      // auto-login after register
+      currentUser = await api('/api/auth/login',{method:'POST',body:JSON.stringify({username,password})});
+    } else {
+      currentUser = await api('/api/auth/login',{method:'POST',body:JSON.stringify({username,password})});
+    }
+    enterDashboard();
+  }catch(e){
+    setStatus('authStatus', e.message || 'Authentication failed','error');
+  }finally{ btn.disabled=false; }
+}
+
+async function logout(){
+  try{ await api('/api/auth/logout',{method:'POST'}); }catch(e){}
+  currentUser=null;
+  $('dashView').classList.add('hidden');
+  $('whoBox').classList.add('hidden');
+  $('authView').classList.remove('hidden');
+  $('authPass').value='';
+  toast('Logged out','ok');
+}
+
+function enterDashboard(){
+  $('authView').classList.add('hidden');
+  $('dashView').classList.remove('hidden');
+  $('whoBox').classList.remove('hidden');
+  $('whoText').innerHTML='Signed in as <b>'+esc(currentUser.username)+'</b>';
+  showTab('files');
+  loadFiles();
+}
+
+/* ─────────── DASHBOARD TABS ─────────── */
+function showTab(t){
+  $('filesTab').classList.toggle('hidden',t!=='files');
+  $('auditTab').classList.toggle('hidden',t!=='audit');
+  $('filesNav').classList.toggle('active',t==='files');
+  $('auditNav').classList.toggle('active',t==='audit');
+  if(t==='audit') loadAudit();
+}
+
+/* ─────────── FILE LIST ─────────── */
+async function loadFiles(){
+  try{
+    const files = await api('/api/files');
+    const list=$('fileList'); list.innerHTML='';
+    $('filesEmpty').classList.toggle('hidden', files.length>0);
+    files.forEach(f=>{
+      const div=document.createElement('div');
+      div.className='file';
+      div.innerHTML=`
+        <div class="ic">📄</div>
+        <div class="meta">
+          <div class="name">${esc(f.originalFilename)}</div>
+          <div class="sub">${fmtSize(f.fileSize)} · ${fmtDate(f.uploadedAt)} · <span class="badge enc">🔒 encrypted</span></div>
+        </div>
+        <div class="acts">
+          <button class="icon-btn" onclick="openDl(${f.id}, ${JSON.stringify(f.originalFilename)})">🔓 Decrypt</button>
+          <button class="icon-btn del" onclick="del(${f.id}, ${JSON.stringify(f.originalFilename)})">🗑</button>
+        </div>`;
+      list.appendChild(div);
+    });
+  }catch(e){
+    if(e.status===401){ logout(); return; }
+    toast('Could not load files: '+e.message,'err');
+  }
+}
+
+async function del(id,name){
+  if(!confirm('Delete "'+name+'"? This permanently removes the encrypted file.')) return;
+  try{
+    await api('/api/files/'+id,{method:'DELETE'});
+    toast('Deleted '+name,'ok');
+    loadFiles();
+  }catch(e){ toast('Delete failed: '+e.message,'err'); }
+}
+
+/* ─────────── UPLOAD + ENCRYPT ─────────── */
+let selectedFile=null;
+
+function openUpload(){
+  selectedFile=null; $('fileInput').value=''; $('upPass').value='';
+  $('fileLabel').textContent='Drop a file or click to browse';
+  $('upProgress').classList.add('hidden'); setPct('upFill','upPct',0);
+  setStatus('upStatus','',''); $('upBtn').disabled=false;
+  $('uploadModal').classList.remove('hidden');
+}
+function closeUpload(){ $('uploadModal').classList.add('hidden'); }
+
+function onPick(inp){
+  selectedFile=inp.files[0];
+  if(selectedFile) $('fileLabel').textContent = selectedFile.name+' ('+fmtSize(selectedFile.size)+')';
+}
+// drag-drop
+const drop=$('drop');
+drop.addEventListener('dragover',e=>{e.preventDefault();drop.classList.add('over');});
+drop.addEventListener('dragleave',()=>drop.classList.remove('over'));
+drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('over');
+  const f=e.dataTransfer.files[0]; if(f){selectedFile=f;$('fileLabel').textContent=f.name+' ('+fmtSize(f.size)+')';}});
+
+async function doUpload(){
+  if(!selectedFile){ setStatus('upStatus','Please select a file','error'); return; }
+  const pass=$('upPass').value;
+  if(!pass){ setStatus('upStatus','Enter an encryption passphrase','error'); return; }
+
+  const btn=$('upBtn'); btn.disabled=true;
+  $('upLock').classList.add('spin');
+  $('upProgress').classList.remove('hidden');
+  try{
+    setStatus('upStatus','Reading file…','info'); setPct('upFill','upPct',10);
+    const plainBuf = await selectedFile.arrayBuffer();
+
+    setStatus('upStatus','Hashing original (SHA-256)…','info'); setPct('upFill','upPct',30);
+    const hashHex = await sha256Hex(plainBuf);
+
+    setStatus('upStatus','Encrypting (AES-256-GCM)…','info'); setPct('upFill','upPct',55);
+    const { ciphertext, salt, iv } = await encryptBytes(pass, plainBuf);
+
+    setStatus('upStatus','Uploading ciphertext…','info'); setPct('upFill','upPct',75);
+    const fd=new FormData();
+    fd.append('file', new Blob([ciphertext],{type:'application/octet-stream'}), 'blob.enc');
+    fd.append('salt', bytesToB64(salt));
+    fd.append('iv', bytesToB64(iv));
+    fd.append('sha256Hash', hashHex);
+    fd.append('originalFilename', selectedFile.name);
+    fd.append('originalSize', String(selectedFile.size));
+
+    await api('/api/files/upload',{method:'POST',body:fd});
+    setPct('upFill','upPct',100);
+    setStatus('upStatus','✅ Encrypted and uploaded','success');
+    toast('Uploaded '+selectedFile.name,'ok');
+    setTimeout(()=>{ closeUpload(); loadFiles(); }, 700);
+  }catch(e){
+    if(e.status===401){ logout(); return; }
+    setStatus('upStatus','❌ '+(e.message||'Upload failed'),'error');
+    toast('Upload failed','err');
+    btn.disabled=false;
+  }finally{ $('upLock').classList.remove('spin'); }
+}
+
+/* ─────────── DOWNLOAD + DECRYPT ─────────── */
+let dlId=null, dlFilename=null;
+
+function openDl(id,name){
+  dlId=id; dlFilename=name;
+  $('dlName').textContent=name;
+  $('dlPass').value='';
+  $('dlProgress').classList.add('hidden'); setPct('dlFill','dlPct',0);
+  setStatus('dlStatus','',''); $('integrity').innerHTML=''; $('dlBtn').disabled=false;
+  $('dlModal').classList.remove('hidden');
+}
+function closeDl(){ $('dlModal').classList.add('hidden'); }
+
+async function doDownload(){
+  const pass=$('dlPass').value;
+  if(!pass){ setStatus('dlStatus','Enter the passphrase','error'); return; }
+  const btn=$('dlBtn'); btn.disabled=true;
+  $('dlLock').classList.add('spin');
+  $('dlProgress').classList.remove('hidden'); $('integrity').innerHTML='';
+  try{
+    setStatus('dlStatus','Fetching ciphertext…','info'); setPct('dlFill','dlPct',25);
+    const resp = await api('/api/files/'+dlId+'/download');
+
+    const salt = b64ToBytes(resp.saltBase64);
+    const iv   = b64ToBytes(resp.ivBase64);
+    const ct   = b64ToBytes(resp.ciphertextBase64);
+
+    setStatus('dlStatus','Deriving key + decrypting…','info'); setPct('dlFill','dlPct',60);
+    let plainBuf;
+    try{
+      plainBuf = await decryptBytes(pass, salt, iv, ct.buffer);
+    }catch(err){
+      // AES-GCM throws if the passphrase is wrong OR the ciphertext was tampered.
+      setPct('dlFill','dlPct',100);
+      setStatus('dlStatus','','');
+      $('integrity').innerHTML='<span class="badge bad">❌ Tampered / wrong passphrase</span>';
+      setStatus('dlStatus','Decryption failed — the passphrase is wrong or the stored ciphertext was altered (GCM auth tag rejected it).','error');
+      toast('Decryption failed','err');
+      btn.disabled=false; $('dlLock').classList.remove('spin');
+      return;
+    }
+
+    setStatus('dlStatus','Verifying integrity (SHA-256)…','info'); setPct('dlFill','dlPct',85);
+    const hashHex = await sha256Hex(plainBuf);
+    const verified = (hashHex === resp.sha256Hash);
+
+    // trigger browser download
+    const blob=new Blob([plainBuf]);
+    const url=URL.createObjectURL(blob);
+    const a=Object.assign(document.createElement('a'),{href:url,download:resp.originalFilename||dlFilename});
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+
+    setPct('dlFill','dlPct',100);
+    if(verified){
+      $('integrity').innerHTML='<span class="badge ok">✅ Integrity Verified</span>';
+      setStatus('dlStatus','Decrypted and saved to your Downloads.','success');
+      toast('Decrypted '+resp.originalFilename,'ok');
+    }else{
+      $('integrity').innerHTML='<span class="badge bad">❌ Hash mismatch</span>';
+      setStatus('dlStatus','Decrypted, but the SHA-256 hash does not match the original — the file may be corrupted.','error');
+      toast('Integrity check failed','err');
+    }
+    btn.disabled=false;
+  }catch(e){
+    if(e.status===401){ logout(); return; }
+    setStatus('dlStatus','❌ '+(e.message||'Download failed. Is the server running?'),'error');
+    toast('Download failed','err');
+    btn.disabled=false;
+  }finally{ $('dlLock').classList.remove('spin'); }
+}
+
+/* ─────────── AUDIT LOG ─────────── */
+async function loadAudit(){
+  try{
+    const rows = await api('/api/audit');
+    const body=$('auditBody'); body.innerHTML='';
+    $('auditEmpty').classList.toggle('hidden', rows.length>0);
+    rows.forEach(r=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td><span class="act ${esc(r.action)}">${esc(r.action)}</span></td>
+        <td>${esc(r.detail||'—')}</td><td>${fmtDate(r.actionTime)}</td>`;
+      body.appendChild(tr);
+    });
+  }catch(e){
+    if(e.status===401){ logout(); return; }
+    toast('Could not load audit log','err');
+  }
+}
+
+/* ─────────── BOOTSTRAP: restore session if cookie is still valid ─────────── */
+(async function init(){
+  $('whoBox').classList.add('hidden');
+  authMode('login');
+  try{
+    currentUser = await api('/api/auth/me');
+    enterDashboard();
+  }catch(e){ /* not logged in — show auth view */ }
+})();
+
+// Enter-to-submit on auth + modals
+document.addEventListener('keydown',e=>{
+  if(e.key!=='Enter') return;
+  if(!$('authView').classList.contains('hidden')) submitAuth();
+  else if(!$('uploadModal').classList.contains('hidden')) doUpload();
+  else if(!$('dlModal').classList.contains('hidden')) doDownload();
+});
+</script>
+</body>
+</html>
