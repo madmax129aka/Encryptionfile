@@ -1,0 +1,63 @@
+# ─────────────────────────────────────────────────────────────
+#  SecureVault — Render Blueprint (Infrastructure as Code)
+#
+#  This provisions THREE resources in one go when you create a
+#  "Blueprint" from this repo on Render:
+#    1. A managed PostgreSQL database (free tier)
+#    2. The Spring Boot backend  (Web Service)
+#    3. The static HTML client   (Static Site)
+#
+#  After the first deploy you must set ALLOWED_ORIGIN on the backend
+#  to the actual Static Site URL, and set API_BASE_URL in the frontend
+#  HTML to the actual backend URL, then redeploy. See README.
+# ─────────────────────────────────────────────────────────────
+
+databases:
+  - name: securevault-db
+    databaseName: securevault
+    plan: free
+
+services:
+  # ── Backend: Spring Boot REST API ──────────────────────────
+  #  Render has no native Java runtime, so we build from a Dockerfile.
+  - type: web
+    name: securevault-backend
+    runtime: docker
+    plan: free
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    healthCheckPath: /api/health
+    envVars:
+      # Render injects the DB connection string from the database above.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: securevault-db
+          property: connectionString
+      # Store ciphertext in Postgres (BYTEA) — Render's disk is ephemeral.
+      - key: STORAGE_BACKEND
+        value: db
+      # Seed demo/Demo@1234 so evaluators can log in immediately.
+      - key: SEED_DEMO_USER
+        value: "true"
+      # Cross-site cookie settings for the separate Static Site domain.
+      - key: COOKIE_SAMESITE
+        value: None
+      - key: COOKIE_SECURE
+        value: "true"
+      # ⚠️ SET THIS after the Static Site is created (its https URL).
+      #    Comma-separated list is allowed.
+      - key: ALLOWED_ORIGIN
+        sync: false
+      # PORT is provided by Render automatically; do not set it here.
+
+  # ── Frontend: static HTML/JS client (no build step) ────────
+  - type: web
+    name: securevault-frontend
+    runtime: static
+    # Publish the repo root so securevault-client.html is served.
+    staticPublishPath: .
+    # Serve the client as the site index.
+    routes:
+      - type: rewrite
+        source: /
+        destination: /securevault-client.html

@@ -1,0 +1,21 @@
+# Maven build output
+server/target/
+
+# Encrypted blob storage (runtime data)
+server/uploads/
+uploads/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
