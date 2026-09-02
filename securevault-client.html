@@ -339,6 +339,11 @@ async function sha256Hex(buf) {
 // base64 <-> bytes helpers
 function bytesToB64(u8){ let s=''; for(let i=0;i<u8.length;i++) s+=String.fromCharCode(u8[i]); return btoa(s); }
 function b64ToBytes(b64){ const s=atob(b64); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; }
+// Return a *tightly-bounded* ArrayBuffer for a Uint8Array — required by
+// crypto.subtle, which expects the buffer's full extent to match the
+// data, not a Uint8Array's view. Always safe, even if the Uint8Array
+// happens to be a subarray/view over a larger buffer.
+function toArrayBuffer(u8){ return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength); }
 
 /* ─────────── API HELPERS ─────────── */
 async function api(path, opts={}) {
@@ -560,10 +565,15 @@ async function doDownload(){
     const iv   = b64ToBytes(resp.ivBase64);
     const ct   = b64ToBytes(resp.ciphertextBase64);
 
+    // Use a tightly-bounded ArrayBuffer slice (byteOffset -> byteOffset+byteLength)
+    // rather than the raw .buffer, so crypto.subtle.decrypt never receives
+    // extra bytes even if the Uint8Array is ever a view over a larger buffer.
+    const ctBuffer = toArrayBuffer(ct);
+
     setStatus('dlStatus','Deriving key + decrypting…','info'); setPct('dlFill','dlPct',60);
     let plainBuf;
     try{
-      plainBuf = await decryptBytes(pass, salt, iv, ct.buffer);
+      plainBuf = await decryptBytes(pass, salt, iv, ctBuffer);
     }catch(err){
       // AES-GCM throws if the passphrase is wrong OR the ciphertext was tampered.
       setPct('dlFill','dlPct',100);
