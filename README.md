@@ -193,14 +193,16 @@ frontend together.
 **Database:** New → **PostgreSQL** (free). Note its **Internal Connection String**.
 
 **Backend:** New → **Web Service**, from this repo.
-- **Root Directory:** `server`
-- **Runtime:** Java
-- **Build Command:** `mvn clean package -DskipTests`
-- **Start Command:** `java -jar target/securevault-server-1.0.0.jar`
+- **Runtime:** **Docker** (Render has no native Java runtime — the backend ships a
+  `server/Dockerfile` that builds the jar with Maven and runs it on a JRE).
+- **Dockerfile Path:** `./server/Dockerfile`
+- **Docker Build Context Directory:** `./server`
 - **Health Check Path:** `/api/health`
 - **Env vars:** `DATABASE_URL` (paste the connection string), `STORAGE_BACKEND=db`,
   `COOKIE_SAMESITE=None`, `COOKIE_SECURE=true`, and (after the frontend exists)
   `ALLOWED_ORIGIN=<your static-site URL>`.
+- No build/start commands needed — the Dockerfile handles both. `PORT` is injected
+  by Render and read by the app automatically.
 
 **Frontend:** New → **Static Site**, from this repo.
 - **Build Command:** *(leave empty — no build step)*
@@ -281,6 +283,8 @@ Encryptionfile/
 ├── securedrop.html                # original browser-only P2P reference (kept for history)
 └── server/
     ├── pom.xml                    # PostgreSQL driver
+    ├── Dockerfile                 # multi-stage build for Render's Docker runtime
+    ├── .dockerignore
     └── src/main/
         ├── java/com/securevault/
         │   ├── SecureVaultApplication.java

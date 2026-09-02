@@ -19,13 +19,13 @@ databases:
 
 services:
   # ── Backend: Spring Boot REST API ──────────────────────────
+  #  Render has no native Java runtime, so we build from a Dockerfile.
   - type: web
     name: securevault-backend
-    runtime: java
+    runtime: docker
     plan: free
-    rootDir: server
-    buildCommand: mvn clean package -DskipTests
-    startCommand: java -jar target/securevault-server-1.0.0.jar
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
     healthCheckPath: /api/health
     envVars:
       # Render injects the DB connection string from the database above.
